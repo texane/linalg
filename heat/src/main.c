@@ -2,7 +2,7 @@
 ** Made by fabien le mentec <texane@gmail.com>
 ** 
 ** Started on  Mon May 31 16:51:53 2010 texane
-** Last update Mon May 31 21:01:26 2010 texane
+** Last update Mon May 31 21:16:54 2010 texane
 */
 
 
@@ -100,9 +100,10 @@ static void get_neigh_indices
   nis[NEIGH_WEST_SIDE] = index - 1;
 }
 
-static void generate_linear_system
-(const grid_t* g, gsl_matrix* a, gsl_vector* b)
+static void generate_a(const grid_t* g, gsl_matrix* a)
 {
+  /* generate the coefficient matrix */
+
   const unsigned int adim = g->dim - 2;
   const unsigned int nrows = g->dim - 2;
   const unsigned int ncols = g->dim - 2;
@@ -112,14 +113,10 @@ static void generate_linear_system
   size_t j;
   size_t k;
   ij_pair_t ijp;
-  double temp;
 
   size_t nis[4];
 
-  /* zero a and b */
-
   gsl_matrix_set_zero(a);
-  gsl_vector_set_zero(b);
 
   /* border columns */
 
@@ -132,7 +129,6 @@ static void generate_linear_system
     gsl_matrix_set(a, index, nis[NEIGH_NORTH_SIDE], -1.f);
     gsl_matrix_set(a, index, nis[NEIGH_EAST_SIDE], -1.f);
     gsl_matrix_set(a, index, nis[NEIGH_SOUTH_SIDE], -1.f);
-    gsl_vector_set(b, index, grid_get_side_temp(g, GRID_WEST_SIDE));
 
     /* last col, north, west, south */
     index = ij_to_index(adim, make_ij_pair(&ijp, i, ncols - 1));
@@ -141,7 +137,6 @@ static void generate_linear_system
     gsl_matrix_set(a, index, nis[NEIGH_NORTH_SIDE], -1.f);
     gsl_matrix_set(a, index, nis[NEIGH_WEST_SIDE], -1.f);
     gsl_matrix_set(a, index, nis[NEIGH_SOUTH_SIDE], -1.f);
-    gsl_vector_set(b, index, grid_get_side_temp(g, GRID_EAST_SIDE));
   }
 
   /* border rows */
@@ -155,7 +150,6 @@ static void generate_linear_system
     gsl_matrix_set(a, index, nis[NEIGH_EAST_SIDE], -1.f);
     gsl_matrix_set(a, index, nis[NEIGH_SOUTH_SIDE], -1.f);
     gsl_matrix_set(a, index, nis[NEIGH_WEST_SIDE], -1.f);
-    gsl_vector_set(b, index, grid_get_side_temp(g, GRID_NORTH_SIDE));
 
     /* last row, north, east, west */
     index = ij_to_index(adim, make_ij_pair(&ijp, nrows - 1, j));
@@ -164,46 +158,33 @@ static void generate_linear_system
     gsl_matrix_set(a, index, nis[NEIGH_NORTH_SIDE], -1.f);
     gsl_matrix_set(a, index, nis[NEIGH_EAST_SIDE], -1.f);
     gsl_matrix_set(a, index, nis[NEIGH_WEST_SIDE], -1.f);
-    gsl_vector_set(b, index, grid_get_side_temp(g, GRID_SOUTH_SIDE));
   }
 
   /* corner cases, north west first, clockwise */
 
-  temp = grid_get_side_temp(g, GRID_NORTH_SIDE);
-  temp += grid_get_side_temp(g, GRID_WEST_SIDE);
   index = ij_to_index(adim, make_ij_pair(&ijp, 0, 0));
   get_neigh_indices(adim, index, nis);
   gsl_matrix_set(a, index, index, 4.f);
   gsl_matrix_set(a, index, nis[NEIGH_EAST_SIDE], -1.f);
   gsl_matrix_set(a, index, nis[NEIGH_SOUTH_SIDE], -1.f);
-  gsl_vector_set(b, index, temp);
 
-  temp = grid_get_side_temp(g, GRID_NORTH_SIDE);
-  temp += grid_get_side_temp(g, GRID_EAST_SIDE);
   index = ij_to_index(adim, make_ij_pair(&ijp, 0, ncols - 1));
   get_neigh_indices(adim, index, nis);
   gsl_matrix_set(a, index, index, 4.f);
   gsl_matrix_set(a, index, nis[NEIGH_WEST_SIDE], -1.f);
   gsl_matrix_set(a, index, nis[NEIGH_SOUTH_SIDE], -1.f);
-  gsl_vector_set(b, index, temp);
 
-  temp = grid_get_side_temp(g, GRID_SOUTH_SIDE);
-  temp += grid_get_side_temp(g, GRID_EAST_SIDE);
   index = ij_to_index(adim, make_ij_pair(&ijp, nrows - 1, ncols - 1));
   get_neigh_indices(adim, index, nis);
   gsl_matrix_set(a, index, index, 4.f);
   gsl_matrix_set(a, index, nis[NEIGH_WEST_SIDE], -1.f);
   gsl_matrix_set(a, index, nis[NEIGH_NORTH_SIDE], -1.f);
-  gsl_vector_set(b, index, temp);
 
-  temp = grid_get_side_temp(g, GRID_SOUTH_SIDE);
-  temp += grid_get_side_temp(g, GRID_WEST_SIDE);
   index = ij_to_index(adim, make_ij_pair(&ijp, nrows - 1, 0));
   get_neigh_indices(adim, index, nis);
   gsl_matrix_set(a, index, index, 4.f);
   gsl_matrix_set(a, index, nis[NEIGH_EAST_SIDE], -1.f);
   gsl_matrix_set(a, index, nis[NEIGH_NORTH_SIDE], -1.f);
-  gsl_vector_set(b, index, temp);
 
   /* inner points */
 
@@ -219,6 +200,80 @@ static void generate_linear_system
 	gsl_matrix_set(a, index, nis[k], -1.f);
     }
   }
+}
+
+static void generate_b(const grid_t* g, gsl_vector* b)
+{
+  /* generate the result matrix */
+
+  const unsigned int adim = g->dim - 2;
+  const unsigned int nrows = g->dim - 2;
+  const unsigned int ncols = g->dim - 2;
+
+  size_t index;
+  size_t i;
+  size_t j;
+  ij_pair_t ijp;
+  double temp;
+
+  gsl_vector_set_zero(b);
+
+  /* border columns */
+
+  for (i = 1; i < (nrows - 1); ++i)
+  {
+    /* first col, north, east, south */
+    index = ij_to_index(adim, make_ij_pair(&ijp, i, 0));
+    gsl_vector_set(b, index, grid_get_side_temp(g, GRID_WEST_SIDE));
+
+    /* last col, north, west, south */
+    index = ij_to_index(adim, make_ij_pair(&ijp, i, ncols - 1));
+    gsl_vector_set(b, index, grid_get_side_temp(g, GRID_EAST_SIDE));
+  }
+
+  /* border rows */
+
+  for (j = 1; j < (ncols - 1); ++j)
+  {
+    /* first row, east, south, west */
+    index = ij_to_index(adim, make_ij_pair(&ijp, 0, j));
+    gsl_vector_set(b, index, grid_get_side_temp(g, GRID_NORTH_SIDE));
+
+    /* last row, north, east, west */
+    index = ij_to_index(adim, make_ij_pair(&ijp, nrows - 1, j));
+    gsl_vector_set(b, index, grid_get_side_temp(g, GRID_SOUTH_SIDE));
+  }
+
+  /* corner cases, north west first, clockwise */
+
+  temp = grid_get_side_temp(g, GRID_NORTH_SIDE);
+  temp += grid_get_side_temp(g, GRID_WEST_SIDE);
+  index = ij_to_index(adim, make_ij_pair(&ijp, 0, 0));
+  gsl_vector_set(b, index, temp);
+
+  temp = grid_get_side_temp(g, GRID_NORTH_SIDE);
+  temp += grid_get_side_temp(g, GRID_EAST_SIDE);
+  index = ij_to_index(adim, make_ij_pair(&ijp, 0, ncols - 1));
+  gsl_vector_set(b, index, temp);
+
+  temp = grid_get_side_temp(g, GRID_SOUTH_SIDE);
+  temp += grid_get_side_temp(g, GRID_EAST_SIDE);
+  index = ij_to_index(adim, make_ij_pair(&ijp, nrows - 1, ncols - 1));
+  gsl_vector_set(b, index, temp);
+
+  temp = grid_get_side_temp(g, GRID_SOUTH_SIDE);
+  temp += grid_get_side_temp(g, GRID_WEST_SIDE);
+  index = ij_to_index(adim, make_ij_pair(&ijp, nrows - 1, 0));
+  gsl_vector_set(b, index, temp);
+}
+
+static void generate_ab
+(const grid_t* g, gsl_matrix* a, gsl_vector* b)
+{
+  /* generate both a and b matrices */
+
+  generate_a(g, a);
+  generate_b(g, b);
 }
 
 
@@ -306,7 +361,7 @@ int main(int ac, char** av)
 
   init_grid(&g);
   alloc_linear_system(&g, &a, &x, &b);
-  generate_linear_system(&g, a, b);
+  generate_ab(&g, a, b);
 
   solve_linear_system(a, x, b);
   /* print_linear_system(a, x, b); */
