@@ -1,3 +1,3 @@
 #!/usr/bin/env sh
 
-gcc -o heat ../src/main.c -lgsl -lblas
+gcc -Wall -o heat ../src/main.c -lgsl -lblas

@@ -2,7 +2,7 @@
 ** Made by fabien le mentec <texane@gmail.com>
 ** 
 ** Started on  Mon May 31 16:51:53 2010 texane
-** Last update Mon May 31 20:49:32 2010 texane
+** Last update Mon May 31 21:01:26 2010 texane
 */
 
 
@@ -265,7 +265,7 @@ static inline void print_double(double value)
   printf("%g ", value);
 }
 
-static void print_linear_system
+static void __attribute__((unused)) print_linear_system
 (const gsl_matrix* a, const gsl_vector* x, const gsl_vector* b)
 {
   size_t i;
