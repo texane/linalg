@@ -2,7 +2,7 @@
 ** Made by fabien le mentec <texane@gmail.com>
 ** 
 ** Started on  Mon May 31 16:51:53 2010 texane
-** Last update Mon May 31 21:16:54 2010 texane
+** Last update Mon May 31 21:32:53 2010 texane
 */
 
 
@@ -64,19 +64,35 @@ typedef struct grid
   double side_temps[4];
 } grid_t;
 
-static void init_grid(grid_t* g)
+static void grid_init_once(grid_t* g)
 {
   g->dim = 7;
+}
+
+static void grid_load_string(grid_t* g, const char* s)
+{
+  /* north:east:south:west */
+
+  double n[4];
 
 #define GRID_NORTH_SIDE 0
 #define GRID_EAST_SIDE 1
 #define GRID_SOUTH_SIDE 2
 #define GRID_WEST_SIDE 3
 
+  sscanf(s, "%lf:%lf:%lf:%lf", &n[0], &n[1], &n[2], &n[3]);
+
+#if 0 /* initial values */
   g->side_temps[GRID_NORTH_SIDE] = 20.f;
   g->side_temps[GRID_EAST_SIDE] = 20.f;
   g->side_temps[GRID_SOUTH_SIDE] = 30.f;
   g->side_temps[GRID_WEST_SIDE] = 25.f;
+#endif
+
+  g->side_temps[GRID_NORTH_SIDE] = n[0];
+  g->side_temps[GRID_EAST_SIDE] = n[1];
+  g->side_temps[GRID_SOUTH_SIDE] = n[2];
+  g->side_temps[GRID_WEST_SIDE] = n[3];
 }
 
 static inline double grid_get_side_temp
@@ -267,7 +283,7 @@ static void generate_b(const grid_t* g, gsl_vector* b)
   gsl_vector_set(b, index, temp);
 }
 
-static void generate_ab
+static void __attribute__((unused)) generate_ab
 (const grid_t* g, gsl_matrix* a, gsl_vector* b)
 {
   /* generate both a and b matrices */
@@ -277,7 +293,7 @@ static void generate_ab
 }
 
 
-static void solve_linear_system
+static void __attribute__((unused)) solve_linear_system
 (gsl_matrix* a, gsl_vector* x, const gsl_vector* b)
 {
   gsl_permutation* const p = gsl_permutation_alloc(a->size1);
@@ -359,13 +375,28 @@ int main(int ac, char** av)
   gsl_vector* x;
   gsl_vector* b;
 
-  init_grid(&g);
-  alloc_linear_system(&g, &a, &x, &b);
-  generate_ab(&g, a, b);
+  gsl_permutation* p;
+  int s;
+  int i;
 
-  solve_linear_system(a, x, b);
-  /* print_linear_system(a, x, b); */
-  print_vector(x);
+  grid_init_once(&g);
+
+  alloc_linear_system(&g, &a, &x, &b);
+  generate_a(&g, a);
+
+  p = gsl_permutation_alloc(a->size1);
+  gsl_linalg_LU_decomp(a, p, &s);
+
+  for (i = 1; i < ac; ++i)
+  {
+    grid_load_string(&g, av[i]);
+    generate_b(&g, b);
+    gsl_linalg_LU_solve(a, p, b, x);
+    print_vector(x);
+    printf("---\n");
+  }
+
+  gsl_permutation_free(p);
   free_linear_system(a, x, b);
 
   return 0;
